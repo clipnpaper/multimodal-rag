@@ -1,4 +1,4 @@
-git clone <저장소 주소>
+git clone https://github.com/clipnpaper/multimodal-rag
 cd multimodal-rag
 
 # 가상환경 생성 및 활성화
