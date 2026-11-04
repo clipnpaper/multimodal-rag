@@ -20,3 +20,7 @@ __pycache__/
 .vscode/
 .idea/
 .DS_Store
+
+# 사진 추출 gitignore하지 않기
+notebooks/figures
+
