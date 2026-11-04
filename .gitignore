@@ -23,4 +23,4 @@ __pycache__/
 
 # 사진 추출 gitignore하지 않기
 notebooks/figures
-
+*.pdf
