@@ -1,15 +1,17 @@
 # 가상환경
 .venv/
 
-# 환경변수 (API 키 노출 방지)
+# 환경변수 (API 키 노출 방지) — 예시 파일(.env.example)만 커밋
 .env
+.env.*
+!.env.example
 
-# 추출 이미지 (용량 폭증 방지)
+# 데이터 산출물 (PDF 원본 / 추출 이미지 / 피클 / 용량 폭증 방지)
 data/figures/
 notebooks/data
-notebooks/data/figures
 notebooks/figures
 *.pdf
+*.pkl
 
 # 벡터 DB
 chroma_db/
@@ -23,7 +25,3 @@ __pycache__/
 .vscode/
 .idea/
 .DS_Store
-
-# 사진 추출 gitignore하지 않기
-notebooks/figures
-*.pdf
