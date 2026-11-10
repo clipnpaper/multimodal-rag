@@ -6,12 +6,14 @@
 .env.*
 !.env.example
 
-# 데이터 산출물 (PDF 원본 / 추출 이미지 / 피클 / 용량 폭증 방지)
+# 데이터 산출물 (추출 이미지 / 중간 피클 — 용량 폭증 방지)
 data/figures/
-notebooks/data
-notebooks/figures
-*.pdf
+data/processed/
 *.pkl
+
+# PDF 는 기본 제외하고 과제 대상 원본만 포함
+*.pdf
+!data/invest.pdf
 
 # 벡터 DB
 chroma_db/

@@ -1,17 +1,17 @@
 # SK네트웍스 경영실적 멀티모달 RAG
 
-SK네트웍스 *2026년 3분기 경영실적* PDF(`SK_networks.pdf`)에서 **텍스트·표·차트 이미지**를 모두 검색해 답하는 멀티모달 질의응답 시스템입니다.
+SK네트웍스 *2026년 3분기 경영실적* PDF(`invest.pdf`)에서 **텍스트·표·차트 이미지**를 모두 검색해 답하는 멀티모달 질의응답 시스템입니다.
 텍스트만 다루는 RAG와 비교(Before/After)해, 차트 속 숫자를 얼마나 더 잘 답하는지 확인합니다.
 
-- 제출 노트북: [`notebooks/과제제출용_노트북.ipynb`](notebooks/과제제출용_노트북.ipynb)
-- 아키텍처 다이어그램 상세: [`docs/architecture.md`](docs/architecture.md)
-
+- 제출 노트북: [`notebooks/Multi_modal_RAG.ipynb`](notebooks/Multi_modal_RAG.ipynb)
+- 아키텍처 다이어그램: 아래 [2. 아키텍처](#2-아키텍처)
+- GitHub : [`GitHub`](https://github.com/clipnpaper/multimodal-rag)
 ---
 
 ## 1. 문제 정의
 
 ### 대상 자료의 특성
-`SK_networks.pdf`는 14쪽짜리 **슬라이드형 실적 발표 자료**입니다.
+`invest.pdf`는 14쪽짜리 **슬라이드형 실적 발표 자료**입니다.
 
 | 특성 | 내용 |
 |---|---|
@@ -38,9 +38,9 @@ PDF에서 텍스트만 뽑으면 이 숫자는 아예 색인되지 않아, 모�
 
 ```mermaid
 flowchart TD
-    PDF[/"SK_networks.pdf<br/>14쪽 슬라이드형 경영실적"/]
+    PDF[/"invest.pdf<br/>14쪽 슬라이드형 경영실적"/]
 
-    subgraph S1["① 데이터 추출"]
+    subgraph S1["① 데이터 추출 — src/extract.py"]
         direction TB
         EXT["unstructured.partition_pdf<br/>strategy=hi_res · OCR kor+eng<br/>표 구조 추론 · 이미지 추출"]
         TXT["텍스트 블록"]
@@ -51,7 +51,7 @@ flowchart TD
         TXT --> SPL
     end
 
-    subgraph S2["② 요약 생성"]
+    subgraph S2["② 요약 생성 — src/summarize.py"]
         direction TB
         SUMT["텍스트 요약<br/>gpt-4o-mini"]
         SUMB["표 요약<br/>gpt-4o-mini"]
@@ -60,7 +60,7 @@ flowchart TD
         B64 --> SUMI
     end
 
-    subgraph S3["③ 색인 · 검색 · 답변"]
+    subgraph S3["③ 색인 · 검색 · 답변 — src/retriever.py"]
         direction TB
         VS[("Chroma vectorstore<br/>요약문 임베딩")]
         DS[("InMemoryStore docstore<br/>원본 텍스트 · 표 · Base64 이미지")]
@@ -118,11 +118,17 @@ flowchart TD
 ### 사전 준비 (Python 패키지가 아닌 OS 프로그램)
 | 프로그램 | 용도 | 비고 |
 |---|---|---|
-| Python 3.11 | 실행 환경 | |
-| [Poppler](https://github.com/oschwartz10612/poppler-windows) | PDF → 이미지 변환 | `bin` 폴더를 PATH에 추가 |
-| [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) | OCR | 설치 시 **Korean(kor) 언어 데이터 선택**, PATH 추가 |
+| Python 3.11 | 실행 환경 | 3.11.9 에서 검증 |
+| Poppler | PDF → 이미지 변환 | `pdftoppm` 이 PATH 에서 실행되어야 함 |
+| Tesseract OCR + 한국어(kor) 언어 데이터 | OCR | `tesseract` 가 PATH 에서 실행되어야 함 |
 
-`tesseract --list-langs` 에 `kor` 가 보여야 합니다.
+| OS | 설치 방법 |
+|---|---|
+| Windows | [Poppler](https://github.com/oschwartz10612/poppler-windows) 압축 해제 후 `bin` 을 PATH 에 추가 · [Tesseract](https://github.com/UB-Mannheim/tesseract/wiki) 설치 시 **Korean** 언어 데이터 선택 후 PATH 추가 |
+| macOS | `brew install poppler tesseract tesseract-lang` |
+| Ubuntu/Debian | `sudo apt install poppler-utils tesseract-ocr tesseract-ocr-kor` |
+
+`tesseract --list-langs` 에 `kor` 가 보여야 합니다. (노트북 첫 셀도 이를 확인합니다.)
 
 ### 설치
 ```bash
@@ -135,7 +141,7 @@ source .venv/bin/activate          # 윈도우: .venv\Scripts\activate
 
 # 의존성 설치
 pip install --upgrade pip
-pip install -r requirements.txt     # 또는 requirements.lock.txt
+pip install -r requirements.txt     # 권장. 정확히 같은 버전이 필요하면 requirements.lock.txt (Windows 기준 고정)
 
 # 커널 등록
 python -m ipykernel install --user --name multimodal-rag
@@ -148,32 +154,56 @@ cp .env.example .env                # 윈도우: copy .env.example .env
 `.env` 를 열어 `OPENAI_API_KEY` 에 본인 키를 입력합니다. `.env` 는 `.gitignore` 로 커밋되지 않습니다.
 
 ### PDF 배치
-저작권과 용량 문제로 PDF는 저장소에 포함하지 않습니다(`*.pdf` 는 `.gitignore`). 아래 위치에 직접 넣어 주세요.
+원본 PDF는 저장소에 포함되어 있습니다.
 
 ```
-notebooks/data/SK_networks.pdf
+data/invest.pdf
 ```
+
+다른 PDF로 바꾸려면 노트북 2장 "경로 설정" 셀의 `fname` 만 수정하세요.
 
 ### 실행
-1. `jupyter lab` 으로 [`notebooks/과제제출용_노트북.ipynb`](notebooks/과제제출용_노트북.ipynb)를 엽니다.
+1. `jupyter lab` 으로 [`notebooks/Multi_modal_RAG.ipynb`](notebooks/Multi_modal_RAG.ipynb)를 엽니다.
 2. 커널을 `multimodal-rag` 로 선택하고 **Restart & Run All** 을 실행합니다.
-3. 실행 중 `notebooks/data/figures/`(추출 이미지), `notebooks/data/processed/`(중간 산출물 pkl)가 자동 생성됩니다.
+3. 실행 중 `data/figures/`(추출 이미지), `data/processed/`(중간 산출물 pkl)가 자동 생성됩니다.
 4. 마지막 셀이 질의 5건의 결과를 `notebooks/results.md` 로 저장합니다.
 
-> 이미지 요약과 질의에 OpenAI API가 호출되므로 비용이 발생합니다. 색인 셀을 두 번 실행하면 벡터 DB에 데이터가 중복됩니다.
+> **참고**
+> - 첫 실행 시 `unstructured` 가 레이아웃 분석 모델 등을 내려받으므로 **인터넷 연결**이 필요하고, 추출 셀(`hi_res`)에 몇 분이 걸립니다.
+> - 이미지 요약과 질의에 OpenAI API가 호출되므로 비용이 발생합니다. 색인 셀을 두 번 실행하면 벡터 DB에 데이터가 중복됩니다.
+> - 노트북은 위에서부터 **순서대로(Run All)** 실행해야 합니다. `.env` 가 없으면 3장 첫 셀에서 안내 메시지와 함께 멈춥니다.
+> - Windows 에서 추출 중 `WinError 32` (임시 파일 사용 중) 가 나면 해당 셀만 다시 실행하세요.
 
 ### 프로젝트 구조
 ```
 multimodal-rag/
-├─ README.md
-├─ docs/architecture.md          # 아키텍처 다이어그램
-├─ .env.example                  # 키 설정 예시 (실제 .env 는 커밋 금지)
-├─ requirements.txt
-├─ requirements.lock.txt
-└─ notebooks/
-   ├─ 과제제출용_노트북.ipynb      # 제출 노트북 (추출 → 요약 → 검색·체인 → 비교)
-   └─ data/                      # (gitignore) PDF · figures · processed
+├── .venv/                      # 가상환경 (Git 제외)
+├── .env                        # API 키 (Git 제외, 절대 커밋 금지)
+├── .env.example                # 키 없는 템플릿 (Git 포함)
+├── .gitignore
+├── requirements.txt            # 의존성 목록
+├── requirements.lock.txt       # 버전 고정 파일
+├── README.md
+├── data/
+│   ├── invest.pdf              # 원본 PDF (SK네트웍스 2026년 3분기 경영실적)
+│   ├── figures/                # 추출된 이미지 (Git 제외, 용량 큼)
+│   └── processed/              # 중간 산출물 pkl (Git 제외)
+├── notebooks/
+│   └── Multi_modal_RAG.ipynb   # 제출 노트북 (추출 → 요약 → 검색·체인 → 비교)
+└── src/
+    ├── extract.py              # ① PDF 파싱: 추출 · 분류 · 텍스트 분할
+    ├── summarize.py            # ② 요약 체인: 텍스트·표·이미지 요약
+    └── retriever.py            # ③ 다중 벡터 검색기 · 최종 체인 · 텍스트 전용 체인
 ```
+
+### 모듈 역할
+| 모듈 | 주요 함수 | 노트북 대응 |
+|---|---|---|
+| `src/extract.py` | `extract_pdf_elements`, `categorize_elements`, `split_texts` | 1. 데이터 추출 |
+| `src/summarize.py` | `generate_text_summaries`, `encode_image`, `image_summarize`, `generate_img_summaries` | 2. 요약 생성 |
+| `src/retriever.py` | `create_retriever`, `add_documents`, `split_image_text_types`, `img_prompt_func`, `build_multimodal_chain`, `build_text_only_chain` | 3. 다중 벡터 검색기 + 최종 체인 |
+
+노트북은 이 모듈을 불러와 단계별로 실행하고 결과를 확인하는 역할을 합니다.
 
 ---
 
@@ -189,25 +219,30 @@ multimodal-rag/
 질문: `2026년 3분기 말 기준 SK네트웍스의 주주 구성에서 특수관계인, 개인, 외국인, 기관, 자사주의 지분율은 각각 얼마인가요?`
 (정답은 4쪽 도넛 차트: 특수관계인 49.0%, 개인 24.7%, 외국인 14.2%, 기관 8.8%, 자사주 3.3%)
 
-<!-- TODO: 노트북 마지막 Before/After 셀(8-2) 출력 전체를 캡처해 아래에 넣으세요 -->
-<!-- ![Before/After 캡처](docs/before_after.png) -->
+![alt text](image.png)
 
 ### 차이 설명
-<!-- TODO: 캡처를 보고 본인 말로 작성하세요. 예) Before 는 ... 라고 답했고, After 는 차트 이미지에서 ... 를 읽어 ... -->
+
+텍스트 전용 RAG는 이미지 안에 쓰여진 데이터를 청킹하지 못해 모른다고 답한 대신,
+멀티모달 RAG는 이미지 안에 쓰여진 데이터를 청킹해 그에 대한 지식으로 답했다.
 
 ---
 
 ## 6. 질의응답 5건
 
-차트 이미지 안에만 있는 수치를 묻는 질문 5건입니다. 결과는 `notebooks/results.md` 에서 가져옵니다.
+차트 이미지 안에만 있는 수치를 묻는 질문 5건입니다. 같은 질문을 텍스트 전용 RAG(Before)와 멀티모달 RAG(After)에 던졌습니다. (실행 결과는 노트북 마지막 셀 출력)
 
-| # | 질문 | 정답(원문) | 답변 (멀티모달) | 근거가 된 원본 종류 |
-|---|---|---|---|---|
-| 1 | 2026년 3분기 말 기준 SK네트웍스의 외국인 지분율과 자사주 지분율은 각각 몇 %인가요? | 외국인 14.2%, 자사주 3.3% | 자료에 외국인 지분율과 자사주 지분율에 대한 내용이 포함되어 있지 않으므로, 해당 정보는 알 수 없습니다. | 2026년 3분기 말 기준 SK네트웍스의 외국인 지분율은 14.2%이고, 자사주 지분율은 3.3%입니다. |
-| 2 | 워커힐 호텔의 객실, F&B, 호텔 기타 부문의 2026년 3분기 매출은 각각 몇 억 원인가요? | 객실 198억원, F&B 375억원, 호텔 기타 55억원 | 자료에 따르면, 2026년 3분기 워커힐 호텔의 객실 매출은 835억 원, F&B 매출은 627억 원입니다. 호텔 기타 부문에 대한 매출 정보는 제공되지 않았습니다. | 워커힐 호텔의 2026년 3분기 매출은 다음과 같습니다:<br><br>- 객실: 198억 원<br>- F&B: 375억 원<br>- 호텔 기타: 55억 원 |
-| 3 | 워커힐 호텔의 2025년 3분기 객실 평균 점유율은 몇 %였나요? | 80.3% | 자료에 따르면, 워커힐 호텔의 2025년 3분기 객실 평균 점유율에 대한 정보는 포함되어 있지 않습니다. 따라서 해당 질문에 대한 답변을 드릴 수 없습니다. | 워커힐 호텔의 2025년 3분기 객실 평균 점유율은 80.3%였습니다. |
-| 4 | SK인텔릭스(렌탈 사업)의 분기별 매출 중 가장 높았던 분기는 언제이고, 금액은 얼마인가요? | 2026년 1분기(’26.1Q), 2,218억원 | 자료에 따르면 SK인텔릭스(렌탈 사업)의 분기별 매출 중 가장 높았던 분기는 2026년 1분기이며, 금액은 14,408억 원입니다. | 자료에 따르면 SK인텔릭스(렌탈 사업)의 분기별 매출 중 가장 높았던 분기는 '26.3Q'이며, 금액은 909억 원입니다. |
-| 5 | SK인텔릭스(렌탈 사업)의 2025년 4분기 매출과 영업이익은 각각 얼마인가요? | 매출 2,035억원, 영업이익 12억원 | 자료에 따르면 SK인텔릭스(렌탈 사업)의 2025년 4분기 매출과 영업이익에 대한 정보는 제공되지 않았습니다. 따라서 해당 질문에 대한 답변을 드릴 수 없습니다. | 자료에 해당 내용이 없으므로, SK인텔릭스(렌탈 사업)의 2025년 4분기 매출과 영업이익은 알 수 없습니다. |
+| # | 질문 | 정답(원문) | Before (텍스트 전용) | After (멀티모달) | 근거가 된 원본 종류 | After 정답 |
+|---|---|---|---|---|---|---|
+| 1 | 2026년 3분기 말 기준 SK네트웍스의 외국인 지분율과 자사주 지분율은 각각 몇 %인가요? | 외국인 14.2%, 자사주 3.3% | 자료에 외국인 지분율과 자사주 지분율에 대한 내용이 포함되어 있지 않으므로, 해당 정보는 알 수 없습니다. | 2026년 3분기 말 기준 SK네트웍스의 외국인 지분율은 14.2%이고, 자사주 지분율은 3.3%입니다. | 이미지 (4쪽 주주구성 도넛 차트) | ○ |
+| 2 | 워커힐 호텔의 객실, F&B, 호텔 기타 부문의 2026년 3분기 매출은 각각 몇 억 원인가요? | 객실 198억원, F&B 375억원, 호텔 기타 55억원 | 자료에 따르면, 2026년 3분기 워커힐 호텔의 객실 매출은 835억 원, F&B 매출은 627억 원입니다. 호텔 기타 부문에 대한 매출 정보는 제공되지 않았습니다. | 워커힐 호텔의 2026년 3분기 매출은 다음과 같습니다:<br><br>- 객실: 198억 원<br>- F&B: 375억 원<br>- 호텔 기타: 55억 원 | 이미지 (11쪽 호텔 사업별 매출 차트) | ○ |
+| 3 | 워커힐 호텔의 2025년 3분기 객실 평균 점유율은 몇 %였나요? | 80.3% | 자료에 따르면, 워커힐 호텔의 2025년 3분기 객실 평균 점유율에 대한 정보는 포함되어 있지 않습니다. 따라서 해당 질문에 대한 답변을 드릴 수 없습니다. | 워커힐 호텔의 2025년 3분기 객실 평균 점유율은 80.3%였습니다. | 이미지 (11쪽 객실 평균 점유율 차트) | ○ |
+| 4 | SK인텔릭스(렌탈 사업)의 분기별 매출 중 가장 높았던 분기는 언제이고, 금액은 얼마인가요? | 2026년 1분기(’26.1Q), 2,218억원 | 자료에 따르면 SK인텔릭스(렌탈 사업)의 분기별 매출 중 가장 높았던 분기는 2026년 1분기이며, 금액은 14,408억 원입니다. | 자료에 따르면 SK인텔릭스(렌탈 사업)의 분기별 매출 중 가장 높았던 분기는 '26.3Q'이며, 금액은 909억 원입니다. | 이미지 (9쪽 SK인텔릭스 매출 차트) | ✕ |
+| 5 | SK인텔릭스(렌탈 사업)의 2025년 4분기 매출과 영업이익은 각각 얼마인가요? | 매출 2,035억원, 영업이익 12억원 | 자료에 따르면 SK인텔릭스(렌탈 사업)의 2025년 4분기 매출과 영업이익에 대한 정보는 제공되지 않았습니다. 따라서 해당 질문에 대한 답변을 드릴 수 없습니다. | 자료에 해당 내용이 없으므로, SK인텔릭스(렌탈 사업)의 2025년 4분기 매출과 영업이익은 알 수 없습니다. | 이미지 (9쪽 SK인텔릭스 매출·영업이익 차트) | ✕ |
+
+- **Before 는 5건 모두 답하지 못하거나 다른 표의 숫자를 잘못 가져왔습니다.** 정답이 이미지에만 있기 때문입니다.
+- **After 는 1~3번을 정확히 맞혔습니다.** 검색된 차트 이미지를 직접 읽었기 때문입니다.
+- **4~5번은 After 도 실패했습니다.** 해당 차트의 이미지 요약이 "수익 추세 그래프"처럼 모호해 SK인텔릭스 차트가 검색되지 않은 것으로 보입니다(7장 한계 3번).
 
 ---
 
@@ -235,6 +270,6 @@ multimodal-rag/
 ## 8. 보안 처리
 
 - API 키는 `.env` 에만 두고 `python-dotenv` 로 읽습니다. 코드와 노트북에 키를 직접 쓰지 않았습니다.
-- `.gitignore` 로 `.env`, `.env.*`(단 `.env.example` 제외), `.venv/`, 원본 PDF, 추출 이미지, 피클, 벡터 DB를 제외했습니다.
+- `.gitignore` 로 `.env`, `.env.*`(단 `.env.example` 제외), `.venv/`, 추출 이미지, 피클, 벡터 DB를 제외했습니다. 과제 대상 PDF(`data/invest.pdf`)만 예외로 포함합니다.
 - 저장소에는 키 자리표시자만 있는 `.env.example` 만 올립니다.
 - 커밋 이력에 `.env` 가 포함된 적이 없음을 확인했습니다(`git log --all -- .env` 결과 없음).
